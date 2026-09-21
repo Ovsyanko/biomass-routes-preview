@@ -159,7 +159,7 @@ jobs:
                   target=value.split("#",1)[0].split("?",1)[0]
                   if target in ("","./"):
                       continue
-                  candidate=(root/target)
+                  candidate=(page.parent/target)
                   ok=(candidate.exists() or (candidate/"index.html").exists())
                   if not ok:
                       failures.append(f"{relpage} -> {value}")
