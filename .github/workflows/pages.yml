@@ -132,6 +132,8 @@ jobs:
           for page in root.rglob("*.html"):
               text=page.read_text("utf-8",errors="ignore")
               relpage=page.relative_to(root)
+              base_match=re.search(r'<base\s+href="([^"]+)"',text,re.I)
+              page_base=root if base_match and base_match.group(1).startswith(prefix) else page.parent
 
               if "https://op-co.online/_next/" in text:
                   failures.append(f"{relpage}: production _next dependency remains")
@@ -159,7 +161,7 @@ jobs:
                   target=value.split("#",1)[0].split("?",1)[0]
                   if target in ("","./"):
                       continue
-                  candidate=(page.parent/target)
+                  candidate=(page_base/target)
                   ok=(candidate.exists() or (candidate/"index.html").exists())
                   if not ok:
                       failures.append(f"{relpage} -> {value}")
