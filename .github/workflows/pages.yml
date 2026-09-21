@@ -166,15 +166,19 @@ jobs:
 
               refs=set(re.findall(r'/biomass-routes-preview/v22/images/[^"\'&)]+',text))
               for ref in refs:
-                  target=root/ref[len(prefix):].split("?",1)[0]
-                  if not target.exists():
-                      failures.append(f"{relpage} -> missing {ref}")
+                  clean=ref.split("?",1)[0].rstrip("\\")
+                  rel=clean.removeprefix(prefix)
+                  target=root/rel
+                  if not target.is_file():
+                      failures.append(f"{relpage} -> missing {clean}")
 
               nextrefs=set(re.findall(r'/biomass-routes-preview/v22/_next/[^"\'&)]+',text))
               for ref in nextrefs:
-                  target=root/ref[len(prefix):].split("?",1)[0]
-                  if not target.exists():
-                      failures.append(f"{relpage} -> missing {ref}")
+                  clean=ref.split("?",1)[0].rstrip("\\")
+                  rel=clean.removeprefix(prefix)
+                  target=root/rel
+                  if not target.is_file():
+                      failures.append(f"{relpage} -> missing {clean}")
 
           if failures:
               print("Preview validation failed:")
