@@ -39,10 +39,13 @@ jobs:
           import re
           root=Path("_site/v22")
           urls=set()
-          rx=re.compile(r"https://op-co\.online/images/[A-Za-z0-9._/-]+")
+          rx_abs=re.compile(r"https://op-co\.online/images/[A-Za-z0-9._/-]+")
+          rx_root=re.compile(r"(?<![A-Za-z0-9.:/-])/images/[A-Za-z0-9._/-]+")
           for p in root.rglob("*.html"):
               text=p.read_text("utf-8",errors="ignore")
-              urls.update(rx.findall(text))
+              urls.update(rx_abs.findall(text))
+              for rel in rx_root.findall(text):
+                  urls.add("https://op-co.online"+rel)
           Path("/tmp/image-urls.txt").write_text("\n".join(sorted(urls))+"\n",encoding="utf-8")
           print(f"Referenced production images: {len(urls)}")
           PY
@@ -91,6 +94,10 @@ jobs:
           for p in root.rglob("*.html"):
               text=p.read_text("utf-8",errors="ignore")
               text=text.replace("https://op-co.online/images/","images/")
+              text=text.replace('"/images/','"images/')
+              text=text.replace("'\/images/","'images/")
+              text=text.replace("url(/images/","url(images/")
+              text=text.replace("url(&quot;/images/","url(&quot;images/")
               p.write_text(text,encoding="utf-8")
           PY
 
