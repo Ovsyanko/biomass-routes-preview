@@ -1,6 +1,12 @@
 name: Deploy GitHub Pages
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'v22/**'
+      - 'favicon.svg'
+      - '.github/workflows/pages.yml'
 
 permissions:
   contents: read
@@ -30,7 +36,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq imagemagick
 
-      - name: Download and optimise referenced images
+      - name: Localise production assets for v22
         shell: bash
         run: |
           set -euo pipefail
@@ -38,19 +44,24 @@ jobs:
           from pathlib import Path
           import re
           root=Path("_site/v22")
-          urls=set()
-          rx_abs=re.compile(r"https://op-co\.online/images/[A-Za-z0-9._/-]+")
-          rx_root=re.compile(r"(?<![A-Za-z0-9.:/-])/images/[A-Za-z0-9._/-]+")
+          image_urls=set()
+          next_urls=set()
+          rx_img_abs=re.compile(r"https://op-co\.online/images/[A-Za-z0-9._~%/-]+")
+          rx_img_root=re.compile(r"(?<![A-Za-z0-9.:/-])/images/[A-Za-z0-9._~%/-]+")
+          rx_next=re.compile(r"https://op-co\.online/_next/[A-Za-z0-9._~%/+-]+")
           for p in root.rglob("*.html"):
               text=p.read_text("utf-8",errors="ignore")
-              urls.update(rx_abs.findall(text))
-              for rel in rx_root.findall(text):
-                  urls.add("https://op-co.online"+rel)
-          Path("/tmp/image-urls.txt").write_text("\n".join(sorted(urls))+"\n",encoding="utf-8")
-          print(f"Referenced production images: {len(urls)}")
+              image_urls.update(rx_img_abs.findall(text))
+              for rel in rx_img_root.findall(text):
+                  image_urls.add("https://op-co.online"+rel)
+              next_urls.update(rx_next.findall(text))
+          Path("/tmp/image-urls.txt").write_text("\n".join(sorted(image_urls))+"\n",encoding="utf-8")
+          Path("/tmp/next-urls.txt").write_text("\n".join(sorted(next_urls))+"\n",encoding="utf-8")
+          print(f"Images to localise: {len(image_urls)}")
+          print(f"Next assets to localise: {len(next_urls)}")
           PY
 
-          mkdir -p /tmp/original-images/images _site/v22/images _site/v22/downloads
+          mkdir -p /tmp/original-images/images _site/v22/images _site/v22/_next _site/v22/downloads
           : > _site/v22/image-optimization-report.txt
 
           while IFS= read -r url; do
@@ -86,77 +97,90 @@ jobs:
             printf '%s\t%s\t%s\t%s\t%s\n' "$rel" "$dims_before" "$before" "$dims_after" "$after" >> _site/v22/image-optimization-report.txt
           done < /tmp/image-urls.txt
 
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            rel="${url#https://op-co.online/_next/}"
+            dst="_site/v22/_next/$rel"
+            mkdir -p "$(dirname "$dst")"
+            curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$dst"
+          done < /tmp/next-urls.txt
+
           python3 - <<'PY'
           from pathlib import Path
           root=Path("_site/v22")
+          prefix="/biomass-routes-preview/v22"
           for p in root.rglob("*.html"):
               text=p.read_text("utf-8",errors="ignore")
-              text=text.replace("https://op-co.online/images/","images/")
-              text=text.replace('"/images/','"images/')
-              text=text.replace("'\/images/","'images/")
-              text=text.replace("url(/images/","url(images/")
-              text=text.replace("url(&quot;/images/","url(&quot;images/")
+              text=text.replace("https://op-co.online/_next/",prefix+"/_next/")
+              text=text.replace("https://op-co.online/images/",prefix+"/images/")
+              text=text.replace('"/images/',f'"{prefix}/images/')
+              text=text.replace("'\/images/",f"'{prefix}/images/")
+              text=text.replace("url(/images/",f"url({prefix}/images/")
+              text=text.replace("url(&quot;/images/",f"url(&quot;{prefix}/images/")
               p.write_text(text,encoding="utf-8")
           PY
 
-      - name: Validate internal links
+      - name: Validate preview isolation, links and assets
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re, sys
           root=Path("_site/v22")
+          prefix="/biomass-routes-preview/v22/"
           failures=[]
-          for page in root.rglob("*.html"):
-              text=page.read_text("utf-8",errors="ignore")
-              for href in re.findall(r'href="([^"]+)"',text):
-                  if href.startswith(("http://","https://","mailto:","tel:","#","javascript:","data:")):
-                      continue
-                  if href.startswith("/biomass-routes-preview/"):
-                      continue
-                  target=href.split("#",1)[0].split("?",1)[0]
-                  if target in ("","./"):
-                      target=""
-                  if target.startswith("/"):
-                      continue
-                  candidate=root/target
-                  ok=False
-                  if target=="":
-                      ok=(root/"index.html").exists()
-                  elif target.endswith("/"):
-                      ok=(candidate/"index.html").exists()
-                  else:
-                      ok=candidate.exists() or (candidate/"index.html").exists()
-                  if not ok:
-                      failures.append(f"{page.relative_to(root)} -> {href}")
-          if failures:
-              print("Broken internal links:")
-              print("\n".join(sorted(set(failures))))
-              sys.exit(1)
-          print("Internal link validation passed.")
-          PY
 
-      - name: Validate local image targets
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re, sys
-          root=Path("_site/v22")
-          failures=[]
           for page in root.rglob("*.html"):
               text=page.read_text("utf-8",errors="ignore")
-              refs=set()
-              refs.update(re.findall(r'src="(images/[^"]+)"',text))
-              refs.update(re.findall(r'url\(&quot;(images/[^&)]+)',text))
-              refs.update(re.findall(r'url\(["\']?(images/[^)"\']+)',text))
+              relpage=page.relative_to(root)
+
+              if "https://op-co.online/_next/" in text:
+                  failures.append(f"{relpage}: production _next dependency remains")
+
+              for attr, value in re.findall(r'(href|src)="([^"]+)"',text):
+                  if value.startswith(("mailto:","tel:","#","javascript:","data:")):
+                      continue
+                  if value.startswith(("http://","https://")):
+                      continue
+                  if value.startswith("/biomass-routes-preview/"):
+                      if value.startswith(prefix):
+                          target=value[len(prefix):].split("#",1)[0].split("?",1)[0]
+                          candidate=root/target
+                          if target.endswith("/"):
+                              ok=(candidate/"index.html").exists()
+                          else:
+                              ok=candidate.exists() or (candidate/"index.html").exists()
+                          if not ok:
+                              failures.append(f"{relpage} -> {value}")
+                      continue
+                  if value.startswith("/"):
+                      failures.append(f"{relpage}: unprefixed root path {attr}={value}")
+                      continue
+
+                  target=value.split("#",1)[0].split("?",1)[0]
+                  if target in ("","./"):
+                      continue
+                  candidate=(root/target)
+                  ok=(candidate.exists() or (candidate/"index.html").exists())
+                  if not ok:
+                      failures.append(f"{relpage} -> {value}")
+
+              refs=set(re.findall(r'/biomass-routes-preview/v22/images/[^"\'&)]+',text))
               for ref in refs:
-                  target=(root/ref.split("?",1)[0])
+                  target=root/ref[len(prefix):].split("?",1)[0]
                   if not target.exists():
-                      failures.append(f"{page.relative_to(root)} -> {ref}")
+                      failures.append(f"{relpage} -> missing {ref}")
+
+              nextrefs=set(re.findall(r'/biomass-routes-preview/v22/_next/[^"\'&)]+',text))
+              for ref in nextrefs:
+                  target=root/ref[len(prefix):].split("?",1)[0]
+                  if not target.exists():
+                      failures.append(f"{relpage} -> missing {ref}")
+
           if failures:
-              print("Missing local images:")
+              print("Preview validation failed:")
               print("\n".join(sorted(set(failures))))
               sys.exit(1)
-          print("Local image validation passed.")
+          print("Preview isolation and path validation passed.")
           PY
 
       - uses: actions/configure-pages@v5
