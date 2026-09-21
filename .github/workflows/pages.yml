@@ -111,7 +111,8 @@ jobs:
           prefix="/biomass-routes-preview/v23"
           for p in root.rglob("*.html"):
               text=p.read_text("utf-8",errors="ignore")
-              text=text.replace("/biomass-routes-preview/v22/","/biomass-routes-preview/v23/")\n              text=text.replace("https://op-co.online/_next/",prefix+"/_next/")
+              text=text.replace("/biomass-routes-preview/v22/","/biomass-routes-preview/v23/")
+              text=text.replace("https://op-co.online/_next/",prefix+"/_next/")
               text=text.replace("https://op-co.online/images/",prefix+"/images/")
               text=text.replace('"/images/',f'"{prefix}/images/')
               text=text.replace("'\/images/",f"'{prefix}/images/")
