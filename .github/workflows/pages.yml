@@ -68,13 +68,13 @@ jobs:
 
             case "$ext" in
               jpg|jpeg)
-                convert "$src" -auto-orient -resize '1920x1920>' -strip -sampling-factor 4:2:0 -interlace Plane -quality 82 "$dst"
+                convert "$src" -auto-orient -resize '1600x1600>' -strip -sampling-factor 4:2:0 -interlace Plane -quality 76 "$dst"
                 ;;
               webp)
-                convert "$src" -auto-orient -resize '1920x1920>' -strip -quality 80 "$dst"
+                convert "$src" -auto-orient -resize '1600x1600>' -strip -quality 76 "$dst"
                 ;;
               png)
-                convert "$src" -auto-orient -resize '1920x1920>' -strip -define png:compression-level=9 "$dst"
+                convert "$src" -auto-orient -resize '1600x1600>' -strip -define png:compression-level=9 "$dst"
                 ;;
               *)
                 cp "$src" "$dst"
@@ -85,8 +85,6 @@ jobs:
             dims_after=$(identify -format '%wx%h' "$dst" 2>/dev/null || echo '?')
             printf '%s\t%s\t%s\t%s\t%s\n' "$rel" "$dims_before" "$before" "$dims_after" "$after" >> _site/v22/image-optimization-report.txt
           done < /tmp/image-urls.txt
-
-          (cd /tmp/original-images && zip -qr "$GITHUB_WORKSPACE/_site/v22/downloads/biomass-routes-original-images.zip" images)
 
           python3 - <<'PY'
           from pathlib import Path
@@ -135,6 +133,30 @@ jobs:
               print("\n".join(sorted(set(failures))))
               sys.exit(1)
           print("Internal link validation passed.")
+          PY
+
+      - name: Validate local image targets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, sys
+          root=Path("_site/v22")
+          failures=[]
+          for page in root.rglob("*.html"):
+              text=page.read_text("utf-8",errors="ignore")
+              refs=set()
+              refs.update(re.findall(r'src="(images/[^"]+)"',text))
+              refs.update(re.findall(r'url\(&quot;(images/[^&)]+)',text))
+              refs.update(re.findall(r'url\(["\']?(images/[^)"\']+)',text))
+              for ref in refs:
+                  target=(root/ref.split("?",1)[0])
+                  if not target.exists():
+                      failures.append(f"{page.relative_to(root)} -> {ref}")
+          if failures:
+              print("Missing local images:")
+              print("\n".join(sorted(set(failures))))
+              sys.exit(1)
+          print("Local image validation passed.")
           PY
 
       - uses: actions/configure-pages@v5
