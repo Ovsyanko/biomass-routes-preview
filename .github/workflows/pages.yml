@@ -70,7 +70,11 @@ jobs:
             src="/tmp/original-images/images/$rel"
             dst="_site/v25/images/$rel"
             mkdir -p "$(dirname "$src")" "$(dirname "$dst")"
-            curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$src"
+            if ! curl -fsSL --retry 2 --retry-delay 1 "$url" -o "$src"; then
+              fallback="https://ovsyanko.github.io/biomass-routes-preview/v23/images/$rel"
+              echo "Production image unavailable; using v23 preview: $fallback"
+              curl -fsSL --retry 3 --retry-delay 2 "$fallback" -o "$src"
+            fi
 
             ext="${rel##*.}"
             ext="${ext,,}"
@@ -102,7 +106,11 @@ jobs:
             rel="${url#https://op-co.online/_next/}"
             dst="_site/v25/_next/$rel"
             mkdir -p "$(dirname "$dst")"
-            curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$dst"
+            if ! curl -fsSL --retry 2 --retry-delay 1 "$url" -o "$dst"; then
+              fallback="https://ovsyanko.github.io/biomass-routes-preview/v23/_next/$rel"
+              echo "Production Next asset unavailable; using v23 preview: $fallback"
+              curl -fsSL --retry 3 --retry-delay 2 "$fallback" -o "$dst"
+            fi
           done < /tmp/next-urls.txt
 
           python3 - <<'PY'
