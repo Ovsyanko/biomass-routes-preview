@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'v23/**'
+      - 'v25/**'
       - 'favicon.svg'
       - '.github/workflows/pages.yml'
 
@@ -36,14 +36,14 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq imagemagick
 
-      - name: Localise production assets for v23
+      - name: Localise production assets for v25
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
-          root=Path("_site/v23")
+          root=Path("_site/v25")
           image_urls=set()
           next_urls=set()
           rx_img_abs=re.compile(r"https://op-co\.online/images/[A-Za-z0-9._~%/-]+")
@@ -61,14 +61,14 @@ jobs:
           print(f"Next assets to localise: {len(next_urls)}")
           PY
 
-          mkdir -p /tmp/original-images/images _site/v23/images _site/v23/_next _site/v23/downloads
-          : > _site/v23/image-optimization-report.txt
+          mkdir -p /tmp/original-images/images _site/v25/images _site/v25/_next _site/v25/downloads
+          : > _site/v25/image-optimization-report.txt
 
           while IFS= read -r url; do
             [ -n "$url" ] || continue
             rel="${url#https://op-co.online/images/}"
             src="/tmp/original-images/images/$rel"
-            dst="_site/v23/images/$rel"
+            dst="_site/v25/images/$rel"
             mkdir -p "$(dirname "$src")" "$(dirname "$dst")"
             curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$src"
 
@@ -94,24 +94,24 @@ jobs:
 
             after=$(stat -c%s "$dst")
             dims_after=$(identify -format '%wx%h' "$dst" 2>/dev/null || echo '?')
-            printf '%s\t%s\t%s\t%s\t%s\n' "$rel" "$dims_before" "$before" "$dims_after" "$after" >> _site/v23/image-optimization-report.txt
+            printf '%s\t%s\t%s\t%s\t%s\n' "$rel" "$dims_before" "$before" "$dims_after" "$after" >> _site/v25/image-optimization-report.txt
           done < /tmp/image-urls.txt
 
           while IFS= read -r url; do
             [ -n "$url" ] || continue
             rel="${url#https://op-co.online/_next/}"
-            dst="_site/v23/_next/$rel"
+            dst="_site/v25/_next/$rel"
             mkdir -p "$(dirname "$dst")"
             curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$dst"
           done < /tmp/next-urls.txt
 
           python3 - <<'PY'
           from pathlib import Path
-          root=Path("_site/v23")
-          prefix="/biomass-routes-preview/v23"
+          root=Path("_site/v25")
+          prefix="/biomass-routes-preview/v25"
           for p in root.rglob("*.html"):
               text=p.read_text("utf-8",errors="ignore")
-              text=text.replace("/biomass-routes-preview/v22/","/biomass-routes-preview/v23/")
+              text=text.replace("/biomass-routes-preview/v22/","/biomass-routes-preview/v25/")
               text=text.replace("https://op-co.online/_next/",prefix+"/_next/")
               text=text.replace("https://op-co.online/images/",prefix+"/images/")
               text=text.replace('"/images/',f'"{prefix}/images/')
@@ -126,8 +126,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re, sys
-          root=Path("_site/v23")
-          prefix="/biomass-routes-preview/v23/"
+          root=Path("_site/v25")
+          prefix="/biomass-routes-preview/v25/"
           failures=[]
 
           for page in root.rglob("*.html"):
@@ -167,7 +167,7 @@ jobs:
                   if not ok:
                       failures.append(f"{relpage} -> {value}")
 
-              refs=set(re.findall(r'/biomass-routes-preview/v23/images/[^"\'&)]+',text))
+              refs=set(re.findall(r'/biomass-routes-preview/v25/images/[^"\'&)]+',text))
               for ref in refs:
                   clean=ref.split("?",1)[0].rstrip("\\")
                   rel=clean.removeprefix(prefix)
@@ -175,13 +175,45 @@ jobs:
                   if not target.is_file():
                       failures.append(f"{relpage} -> missing {clean}")
 
-              nextrefs=set(re.findall(r'/biomass-routes-preview/v23/_next/[^"\'&)]+',text))
+              nextrefs=set(re.findall(r'/biomass-routes-preview/v25/_next/[^"\'&)]+',text))
               for ref in nextrefs:
                   clean=ref.split("?",1)[0].rstrip("\\")
                   rel=clean.removeprefix(prefix)
                   target=root/rel
                   if not target.is_file():
                       failures.append(f"{relpage} -> missing {clean}")
+
+          full_translation_rules={
+              "en/agricultural-waste/bioconversion/index.html": {"min_chars":14000,"min_images":1,"min_tables":0},
+              "en/fertilizers/biochar/index.html": {"min_chars":16000,"min_images":7,"min_tables":0},
+              "en/fertilizers/poultry-manure/index.html": {"min_chars":15000,"min_images":5,"min_tables":4},
+              "en/wood-waste/activated-carbon/index.html": {"min_chars":18000,"min_images":3,"min_tables":2},
+              "en/wood-waste/biorefining/index.html": {"min_chars":18000,"min_images":4,"min_tables":5},
+              "en/wood-waste/industrial-biocarbon/index.html": {"min_chars":15000,"min_images":5,"min_tables":1},
+              "en/wood-waste/wpc/index.html": {"min_chars":18000,"min_images":8,"min_tables":0},
+          }
+          forbidden_translation_markers=(
+              "The full article is currently available in Russian",
+              "The English version is being prepared",
+              "<h2>Russian article</h2>",
+          )
+          for rel,rule in full_translation_rules.items():
+              page=root/rel
+              if not page.is_file():
+                  failures.append(f"{rel}: translated article missing")
+                  continue
+              text=page.read_text("utf-8",errors="ignore")
+              body_match=re.search(r'<article class="articleBody"[^>]*>(.*?)</article>',text,re.S)
+              body=body_match.group(1) if body_match else ""
+              if len(body)<rule["min_chars"]:
+                  failures.append(f"{rel}: article body too short ({len(body)} chars)")
+              if body.count("<img")<rule["min_images"]:
+                  failures.append(f"{rel}: expected at least {rule['min_images']} article images")
+              if body.count("<table")<rule["min_tables"]:
+                  failures.append(f"{rel}: expected at least {rule['min_tables']} article tables")
+              for forbidden in forbidden_translation_markers:
+                  if forbidden in body:
+                      failures.append(f"{rel}: placeholder text remains: {forbidden}")
 
           if failures:
               print("Preview validation failed:")
