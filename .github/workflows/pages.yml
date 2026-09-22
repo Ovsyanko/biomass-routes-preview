@@ -187,10 +187,10 @@ jobs:
               "en/agricultural-waste/bioconversion/index.html": {"min_chars":14000,"min_images":1,"min_tables":0},
               "en/fertilizers/biochar/index.html": {"min_chars":16000,"min_images":7,"min_tables":0},
               "en/fertilizers/poultry-manure/index.html": {"min_chars":15000,"min_images":5,"min_tables":4},
-              "en/wood-waste/activated-carbon/index.html": {"min_chars":18000,"min_images":3,"min_tables":2},
-              "en/wood-waste/biorefining/index.html": {"min_chars":18000,"min_images":4,"min_tables":5},
-              "en/wood-waste/industrial-biocarbon/index.html": {"min_chars":15000,"min_images":5,"min_tables":1},
-              "en/wood-waste/wpc/index.html": {"min_chars":18000,"min_images":8,"min_tables":0},
+              "en/wood-waste/activated-carbon/index.html": {"min_chars":23000,"min_images":3,"min_tables":2},
+              "en/wood-waste/biorefining/index.html": {"min_chars":24000,"min_images":4,"min_tables":5},
+              "en/wood-waste/industrial-biocarbon/index.html": {"min_chars":17500,"min_images":5,"min_tables":1},
+              "en/wood-waste/wpc/index.html": {"min_chars":23000,"min_images":8,"min_tables":0},
           }
           forbidden_translation_markers=(
               "The full article is currently available in Russian",
